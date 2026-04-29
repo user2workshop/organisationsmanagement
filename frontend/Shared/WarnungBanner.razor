@@ -1,0 +1,27 @@
+@namespace OrgMgmtFrontend.Shared
+@inject ApiService Api
+
+@if (warnungen.Count > 0)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        <MudText Typo="Typo.subtitle2">
+            @warnungen.Count Leitungsfunktion@(warnungen.Count > 1 ? "en" : "") ohne Verantwortlichen
+        </MudText>
+        <ul style="margin:4px 0 0 16px">
+            @foreach (var w in warnungen)
+            {
+                <li>@w.Bezeichnung</li>
+            }
+        </ul>
+    </MudAlert>
+}
+
+@code {
+    private List<Warnung> warnungen = [];
+
+    protected override async Task OnInitializedAsync()
+    {
+        try { warnungen = await Api.GetUnbesetzteLeitungsfunktionenAsync(); }
+        catch { /* ignore */ }
+    }
+}

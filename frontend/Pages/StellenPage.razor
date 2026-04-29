@@ -1,0 +1,208 @@
+@page "/stellen"
+@inject ApiService Api
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Stellen</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">
+        Stelle anlegen
+    </MudButton>
+</MudStack>
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="stellen" Hover="true" Elevation="1" Dense="true">
+        <HeaderContent>
+            <MudTh>Bezeichnung</MudTh>
+            <MudTh>Typ</MudTh>
+            <MudTh>Organisationseinheit</MudTh>
+            <MudTh>Funktion</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Aktionen</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd><b>@context.Bezeichnung</b></MudTd>
+            <MudTd>@(context.Stellentyp == "VOLLZEIT" ? "Vollzeit" : "Teilzeit")</MudTd>
+            <MudTd>@(oeMap.TryGetValue(context.OrganisationseinheitId, out var oeName) ? oeName : context.OrganisationseinheitId)</MudTd>
+            <MudTd>@(funkMap.TryGetValue(context.FunktionId, out var fName) ? fName : context.FunktionId)</MudTd>
+            <MudTd><StatusBadge Status="@context.Status" /></MudTd>
+            <MudTd>
+                <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined">
+                    <MudButton OnClick="() => OpenEdit(context)">Bearbeiten</MudButton>
+                    @if (context.Status == "ENTWURF")
+                    {
+                        <MudButton Color="Color.Success"
+                                   OnClick="async () => await HandleAktivieren(context.Id)">
+                            Aktivieren
+                        </MudButton>
+                    }
+                </MudButtonGroup>
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary" Class="pa-4">Keine Stellen vorhanden</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@if (showModal)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Style="width:520px;max-width:95vw" Class="pa-6">
+            <MudText Typo="Typo.h6" Class="mb-4">
+                @(form.Id != null ? "Stelle bearbeiten" : "Stelle anlegen")
+            </MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudTextField @bind-Value="form.Bezeichnung" Label="Bezeichnung *"
+                                  AutoFocus="true" Required="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="form.Stellentyp" Label="Stellentyp *" Required="true">
+                        <MudSelectItem Value="@("VOLLZEIT")">Vollzeit</MudSelectItem>
+                        <MudSelectItem Value="@("TEILZEIT")">Teilzeit</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="form.OrganisationseinheitId" Label="Organisationseinheit *"
+                               Required="true" Disabled="@(form.Id != null)">
+                        <MudSelectItem Value="@("")">– bitte wählen –</MudSelectItem>
+                        @foreach (var oe in flatOes)
+                        {
+                            <MudSelectItem Value="@oe.Id">@oe.Bezeichnung</MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="form.FunktionId" Label="Funktion *" Required="true">
+                        <MudSelectItem Value="@("")">– bitte wählen –</MudSelectItem>
+                        @foreach (var f in funktionen)
+                        {
+                            <MudSelectItem Value="@f.Id">
+                                @f.Bezeichnung@(f.IstLeitungsfunktion ? " (Leitungsfunktion)" : "")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.GueltigAb" Label="Gültig ab *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.GueltigBis" Label="Gültig bis"
+                                  InputType="InputType.Date" />
+                </MudItem>
+                @if (!string.IsNullOrEmpty(formError))
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Error">@formError</MudAlert>
+                    </MudItem>
+                }
+                <MudItem xs="12">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="() => showModal = false">Abbrechen</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="HandleSave" Disabled="@saving">
+                            @(saving ? "Speichern…" : "Speichern")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@code {
+    private List<Stelle> stellen = [];
+    private List<Organisationseinheit> oes = [];
+    private List<Funktion> funktionen = [];
+    private bool loading = true;
+    private bool showModal;
+    private bool saving;
+    private string? formError;
+    private StelleForm form = new();
+
+    private IEnumerable<Organisationseinheit> flatOes => FlattenOes(oes);
+    private Dictionary<string, string> oeMap => FlattenOes(oes).ToDictionary(o => o.Id, o => o.Bezeichnung);
+    private Dictionary<string, string> funkMap => funktionen.ToDictionary(f => f.Id, f => f.Bezeichnung);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        var t1 = Api.GetStellenAsync();
+        var t2 = Api.GetOrganisationseinheitenAsync();
+        var t3 = Api.GetFunktionenAsync();
+        await Task.WhenAll(t1, t2, t3);
+        stellen = t1.Result; oes = t2.Result; funktionen = t3.Result;
+        loading = false;
+    }
+
+    private void OpenCreate() { formError = null; form = new(); showModal = true; }
+    private void OpenEdit(Stelle s)
+    {
+        formError = null;
+        form = new StelleForm
+        {
+            Id = s.Id, Bezeichnung = s.Bezeichnung, Stellentyp = s.Stellentyp,
+            OrganisationseinheitId = s.OrganisationseinheitId, FunktionId = s.FunktionId,
+            GueltigAb = s.GueltigAb, GueltigBis = s.GueltigBis ?? ""
+        };
+        showModal = true;
+    }
+
+    private async Task HandleSave()
+    {
+        if (string.IsNullOrWhiteSpace(form.Bezeichnung)) { formError = "Bezeichnung erforderlich."; return; }
+        if (string.IsNullOrEmpty(form.OrganisationseinheitId)) { formError = "Organisationseinheit erforderlich."; return; }
+        if (string.IsNullOrEmpty(form.FunktionId)) { formError = "Funktion erforderlich."; return; }
+        if (string.IsNullOrEmpty(form.GueltigAb)) { formError = "Gültig ab erforderlich."; return; }
+        saving = true; formError = null;
+        try
+        {
+            var data = new
+            {
+                bezeichnung            = form.Bezeichnung.Trim(),
+                stellentyp             = form.Stellentyp,
+                organisationseinheitId = form.OrganisationseinheitId,
+                funktionId             = form.FunktionId,
+                gueltigAb              = form.GueltigAb,
+                gueltigBis             = string.IsNullOrEmpty(form.GueltigBis) ? null : form.GueltigBis
+            };
+            if (form.Id != null) await Api.UpdateStelleAsync(form.Id, data);
+            else await Api.CreateStelleAsync(data);
+            showModal = false;
+            await LoadAsync();
+        }
+        catch { formError = "Speichern fehlgeschlagen."; }
+        finally { saving = false; }
+    }
+
+    private async Task HandleAktivieren(string id)
+    {
+        await Api.AktiviereStelleAsync(id);
+        await LoadAsync();
+    }
+
+    private static IEnumerable<Organisationseinheit> FlattenOes(List<Organisationseinheit> oes)
+    {
+        foreach (var oe in oes) { yield return oe; foreach (var c in FlattenOes(oe.Kinder)) yield return c; }
+    }
+
+    private class StelleForm
+    {
+        public string? Id { get; set; }
+        public string Bezeichnung { get; set; } = "";
+        public string Stellentyp { get; set; } = "VOLLZEIT";
+        public string OrganisationseinheitId { get; set; } = "";
+        public string FunktionId { get; set; } = "";
+        public string GueltigAb { get; set; } = "";
+        public string GueltigBis { get; set; } = "";
+    }
+}

@@ -21,3 +21,9 @@ springdoc:
 logging:
   level:
     de.conciso: DEBUG
+
+de:
+  flapdoodle:
+    mongodb:
+      embedded:
+        version: 7.0.2

@@ -1,0 +1,179 @@
+@page "/vertretungsregeln"
+@inject ApiService Api
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Vertretungsregeln</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="() => showForm = true">
+        Vertretungsregel anlegen
+    </MudButton>
+</MudStack>
+
+<MudChipSet T="string" SelectionMode="SelectionMode.SingleSelection"
+            SelectedValue="filter" SelectedValueChanged="SetFilter" Class="mb-4">
+    @foreach (var s in statusFilter)
+    {
+        <MudChip Value="@s" Color="@(filter == s ? Color.Primary : Color.Default)"
+                 Variant="@(filter == s ? Variant.Filled : Variant.Outlined)">
+            @s
+        </MudChip>
+    }
+</MudChipSet>
+
+@if (showForm)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Style="width:520px;max-width:95vw" Class="pa-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Neue Vertretungsregel</MudText>
+            @if (!string.IsNullOrEmpty(formError))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@formError</MudAlert>
+            }
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.StelleId" Label="Stellen-ID *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.VertretungspersonId" Label="Vertretungsperson-ID *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.StartDatum" Label="Von *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.EndDatum" Label="Bis *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="form.Grund" Label="Grund">
+                        <MudSelectItem Value="@("URLAUB")">URLAUB</MudSelectItem>
+                        <MudSelectItem Value="@("KRANKHEIT")">KRANKHEIT</MudSelectItem>
+                        <MudSelectItem Value="@("POSITIONSWECHSEL")">POSITIONSWECHSEL</MudSelectItem>
+                        <MudSelectItem Value="@("SONSTIGE")">SONSTIGE</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="() => showForm = false">Abbrechen</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="HandleSubmit" Disabled="@saving">
+                            @(saving ? "Speichern…" : "Speichern")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="regeln" Hover="true" Elevation="1" Dense="true">
+        <HeaderContent>
+            <MudTh>Stelle</MudTh>
+            <MudTh>Vertretungsperson</MudTh>
+            <MudTh>Von</MudTh>
+            <MudTh>Bis</MudTh>
+            <MudTh>Grund</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-family:monospace">
+                    @(context.StelleId.Length > 8 ? context.StelleId[..8] + "…" : context.StelleId)
+                </MudText>
+            </MudTd>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-family:monospace">
+                    @(context.VertretungspersonId.Length > 8 ? context.VertretungspersonId[..8] + "…" : context.VertretungspersonId)
+                </MudText>
+            </MudTd>
+            <MudTd>@context.StartDatum</MudTd>
+            <MudTd>@context.EndDatum</MudTd>
+            <MudTd>@context.Grund</MudTd>
+            <MudTd><StatusBadge Status="@context.Status" /></MudTd>
+            <MudTd>
+                @if (context.Status is "GEPLANT" or "AKTIV")
+                {
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error"
+                               OnClick="async () => await HandleStornieren(context.Id)">
+                        Stornieren
+                    </MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary" Class="pa-4">Keine Vertretungsregeln vorhanden</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private static readonly string[] statusFilter = ["ALLE", "GEPLANT", "AKTIV", "BEENDET", "STORNIERT"];
+
+    private List<Vertretungsregel> regeln = [];
+    private string filter = "ALLE";
+    private bool loading = true;
+    private bool showForm;
+    private bool saving;
+    private string? formError;
+    private VrForm form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task SetFilter(string newFilter)
+    {
+        filter = newFilter;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        regeln = await Api.GetVertretungsregelnAsync(filter == "ALLE" ? null : filter);
+        loading = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        saving = true; formError = null;
+        try
+        {
+            await Api.CreateVertretungsregelAsync(new
+            {
+                stelleId            = form.StelleId,
+                vertretungspersonId = form.VertretungspersonId,
+                startDatum          = form.StartDatum,
+                endDatum            = form.EndDatum,
+                grund               = form.Grund
+            });
+            showForm = false;
+            form = new();
+            await LoadAsync();
+        }
+        catch { formError = "Vertretungsregel konnte nicht gespeichert werden."; }
+        finally { saving = false; }
+    }
+
+    private async Task HandleStornieren(string id)
+    {
+        try { await Api.DeleteVertretungsregelAsync(id); await LoadAsync(); }
+        catch { /* ignore */ }
+    }
+
+    private class VrForm
+    {
+        public string StelleId { get; set; } = "";
+        public string VertretungspersonId { get; set; } = "";
+        public string StartDatum { get; set; } = "";
+        public string EndDatum { get; set; } = "";
+        public string Grund { get; set; } = "URLAUB";
+    }
+}

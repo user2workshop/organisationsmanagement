@@ -1,0 +1,89 @@
+@namespace OrgMgmtFrontend.Shared
+
+<div style="@(Depth > 0 ? "margin-left:24px;border-left:2px solid #e0e0e0;padding-left:12px" : "")">
+    <div style="display:flex;align-items:center;gap:8px;padding:4px 8px;border-radius:4px" class="mud-theme-background-hover">
+        @if (Node.Kinder.Count > 0)
+        {
+            <MudIconButton Icon="@(expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                           Size="Size.Small"
+                           OnClick="ToggleExpanded" />
+        }
+        else
+        {
+            <span style="width:34px;display:inline-block"></span>
+        }
+
+        <MudText Style="flex:1;min-width:0">
+            <b>@Node.Bezeichnung</b>
+            <MudText Inline="true" Typo="Typo.caption" Color="Color.Secondary" Class="ml-2">@TypLabel(Node.Typ)</MudText>
+            @if (!string.IsNullOrEmpty(Node.KostenstelleId))
+            {
+                <MudText Inline="true" Typo="Typo.caption" Color="Color.Tertiary" Class="ml-2">KST: @Node.KostenstelleId</MudText>
+            }
+        </MudText>
+
+        <StatusBadge Status="@Node.Status" />
+
+        <MudButtonGroup Size="Size.Small" Variant="Variant.Outlined" Class="ml-2">
+            <MudButton OnClick="@(() => OnEdit.InvokeAsync(Node))">Bearbeiten</MudButton>
+            @if (Node.Status != "AUFGELOEST")
+            {
+                <MudButton Color="Color.Success" OnClick="@(() => OnAddChild.InvokeAsync(Node.Id))">+ Untereinheit</MudButton>
+            }
+            @if (Node.Status == "ENTWURF")
+            {
+                <MudButton Color="Color.Success" OnClick="@(() => OnActivate.InvokeAsync(Node.Id))">Aktivieren</MudButton>
+                <MudButton Color="Color.Error" OnClick="@(() => OnDelete.InvokeAsync(Node.Id))">Löschen</MudButton>
+            }
+            @if (Node.Status == "AKTIV")
+            {
+                <MudButton Color="Color.Warning" OnClick="@(() => OnDeactivate.InvokeAsync(Node.Id))">Deaktivieren</MudButton>
+            }
+            @if (Node.Status == "AKTIV" || Node.Status == "INAKTIV")
+            {
+                <MudButton Color="Color.Warning" OnClick="@(() => OnAufloesen.InvokeAsync(Node.Id))">Auflösen</MudButton>
+            }
+        </MudButtonGroup>
+    </div>
+
+    @if (expanded && Node.Kinder.Count > 0)
+    {
+        @foreach (var kind in Node.Kinder)
+        {
+            <OrgNode Node="kind"
+                     Depth="@(Depth + 1)"
+                     OnEdit="OnEdit"
+                     OnAddChild="OnAddChild"
+                     OnActivate="OnActivate"
+                     OnDeactivate="OnDeactivate"
+                     OnAufloesen="OnAufloesen"
+                     OnDelete="OnDelete" />
+        }
+    }
+</div>
+
+@code {
+    [Parameter] public Organisationseinheit Node { get; set; } = new();
+    [Parameter] public int Depth { get; set; } = 0;
+    [Parameter] public EventCallback<Organisationseinheit> OnEdit { get; set; }
+    [Parameter] public EventCallback<string> OnAddChild { get; set; }
+    [Parameter] public EventCallback<string> OnActivate { get; set; }
+    [Parameter] public EventCallback<string> OnDeactivate { get; set; }
+    [Parameter] public EventCallback<string> OnAufloesen { get; set; }
+    [Parameter] public EventCallback<string> OnDelete { get; set; }
+
+    private bool expanded;
+
+    protected override void OnInitialized() => expanded = Depth < 2;
+
+    private void ToggleExpanded() => expanded = !expanded;
+
+    private static string TypLabel(string typ) => typ switch
+    {
+        "BEREICH"     => "Bereich",
+        "ABTEILUNG"   => "Abteilung",
+        "TEAM"        => "Team",
+        "STABSSTELLE" => "Stabsstelle",
+        _             => typ
+    };
+}

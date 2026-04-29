@@ -1,0 +1,367 @@
+@page "/mitarbeiter"
+@inject ApiService Api
+@inject IDialogService DialogService
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Mitarbeiter</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.PersonAdd" OnClick="OpenCreate">
+        Mitarbeiter anlegen
+    </MudButton>
+</MudStack>
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="mitarbeiter" Hover="true" Elevation="1" Dense="true">
+        <HeaderContent>
+            <MudTh></MudTh>
+            <MudTh>Pers.-Nr.</MudTh>
+            <MudTh>Name</MudTh>
+            <MudTh>E-Mail</MudTh>
+            <MudTh>Eintrittsdatum</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Aktionen</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudIconButton Size="Size.Small"
+                               Icon="@(expandedId == context.Id ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)"
+                               OnClick="() => ToggleExpand(context.Id)" />
+            </MudTd>
+            <MudTd><MudText Typo="Typo.body2" Style="font-family:monospace">@context.Personalnummer</MudText></MudTd>
+            <MudTd><b>@context.Vorname @context.Nachname</b></MudTd>
+            <MudTd>@context.Email</MudTd>
+            <MudTd>@context.Eintrittsdatum</MudTd>
+            <MudTd>
+                <MudChip T="string" Size="Size.Small"
+                         Color="@(context.Aktiv ? Color.Success : Color.Default)"
+                         Variant="Variant.Filled">
+                    @(context.Aktiv ? "Aktiv" : "Ausgetreten")
+                </MudChip>
+            </MudTd>
+            <MudTd>
+                <MudButton Size="Size.Small" Variant="Variant.Outlined"
+                           OnClick="() => OpenEdit(context)">Bearbeiten</MudButton>
+            </MudTd>
+        </RowTemplate>
+        <ChildRowContent>
+            @if (expandedId == context.Id)
+            {
+                <MudTr>
+                    <MudTd colspan="7">
+                        <MudPaper Class="pa-4 ma-2" Elevation="0" Style="background:#f5f7ff">
+                            <MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-3">
+                                <MudText Typo="Typo.subtitle2">Stellenbesetzungen</MudText>
+                                <MudSpacer />
+                                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary"
+                                           StartIcon="@Icons.Material.Filled.Add"
+                                           OnClick="() => OpenBesetzungModal(context.Id)">
+                                    Stelle zuordnen
+                                </MudButton>
+                            </MudStack>
+                            @if (besetzungen.Count == 0)
+                            {
+                                <MudText Color="Color.Secondary" Typo="Typo.body2">Keine Stellenbesetzungen vorhanden.</MudText>
+                            }
+                            else
+                            {
+                                <MudTable Items="besetzungen" Dense="true" Elevation="0" Hover="true">
+                                    <HeaderContent>
+                                        <MudTh>Stelle</MudTh>
+                                        <MudTh>OE</MudTh>
+                                        <MudTh>Funktion</MudTh>
+                                        <MudTh>Typ</MudTh>
+                                        <MudTh>Von</MudTh>
+                                        <MudTh>Bis</MudTh>
+                                        <MudTh>Status</MudTh>
+                                        <MudTh></MudTh>
+                                    </HeaderContent>
+                                    <RowTemplate Context="besetzung">
+                                        @{
+                                            var stelle = stelleMap.TryGetValue(besetzung.StelleId, out var s) ? s : null;
+                                        }
+                                        <MudTd><b>@(stelle?.Bezeichnung ?? besetzung.StelleId)</b></MudTd>
+                                        <MudTd>@(stelle != null && oeMap.TryGetValue(stelle.OrganisationseinheitId, out var oen) ? oen : "–")</MudTd>
+                                        <MudTd>@(stelle != null && funkMap.TryGetValue(stelle.FunktionId, out var fn) ? fn : "–")</MudTd>
+                                        <MudTd>@besetzung.Typ</MudTd>
+                                        <MudTd>@besetzung.StartDatum</MudTd>
+                                        <MudTd>@(besetzung.EndDatum ?? "–")</MudTd>
+                                        <MudTd><StatusBadge Status="@besetzung.Status" /></MudTd>
+                                        <MudTd>
+                                            @if (besetzung.Status == "AKTIV")
+                                            {
+                                                <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Warning"
+                                                           OnClick="async () => await HandleBeenden(besetzung)">
+                                                    Beenden
+                                                </MudButton>
+                                            }
+                                        </MudTd>
+                                    </RowTemplate>
+                                </MudTable>
+                            }
+                        </MudPaper>
+                    </MudTd>
+                </MudTr>
+            }
+        </ChildRowContent>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary" Class="pa-4">Keine Mitarbeiter vorhanden</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@if (showMitarbeiterModal)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Style="width:520px;max-width:95vw" Class="pa-6">
+            <MudText Typo="Typo.h6" Class="mb-4">
+                @(mForm.Id != null ? "Mitarbeiter bearbeiten" : "Mitarbeiter anlegen")
+            </MudText>
+            @if (!string.IsNullOrEmpty(mError))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@mError</MudAlert>
+            }
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Vorname" Label="Vorname *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Nachname" Label="Nachname *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Email" Label="E-Mail *"
+                                  InputType="InputType.Email" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Personalnummer" Label="Personalnummer *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Eintrittsdatum" Label="Eintrittsdatum *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="mForm.Austrittsdatum" Label="Austrittsdatum (optional)"
+                                  InputType="InputType.Date" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="() => showMitarbeiterModal = false">Abbrechen</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="HandleMitarbeiterSave" Disabled="@mSaving">
+                            @(mSaving ? "Speichern…" : "Speichern")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@if (showBesetzungModal)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Style="width:520px;max-width:95vw" Class="pa-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Stelle zuordnen</MudText>
+            <MudGrid Spacing="2">
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="bForm.StelleId" Label="Stelle *" Required="true">
+                        <MudSelectItem Value="@("")">– bitte wählen –</MudSelectItem>
+                        @foreach (var s in aktivStellen)
+                        {
+                            <MudSelectItem Value="@s.Id">
+                                @s.Bezeichnung · @(oeMap.TryGetValue(s.OrganisationseinheitId, out var on) ? on : "?") · @(funkMap.TryGetValue(s.FunktionId, out var fn) ? fn : "?")
+                            </MudSelectItem>
+                        }
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="bForm.StartDatum" Label="Startdatum *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="bForm.EndDatum" Label="Enddatum"
+                                  InputType="InputType.Date" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudSelect @bind-Value="bForm.Typ" Label="Besetzungstyp *" Required="true">
+                        <MudSelectItem Value="@("HAUPTINHABER")">Hauptinhaber</MudSelectItem>
+                        <MudSelectItem Value="@("INTERIMINHABER")">Interiminhaber</MudSelectItem>
+                    </MudSelect>
+                </MudItem>
+                <MudItem xs="12">
+                    <MudCheckBox @bind-Value="bForm.IstVerantwortlicher"
+                                 Label="Ist Verantwortlicher (Leitungsfunktion)" />
+                </MudItem>
+                @if (!string.IsNullOrEmpty(bError))
+                {
+                    <MudItem xs="12">
+                        <MudAlert Severity="Severity.Error">@bError</MudAlert>
+                    </MudItem>
+                }
+                <MudItem xs="12">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="() => showBesetzungModal = false">Abbrechen</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="HandleBesetzungSave" Disabled="@bSaving">
+                            @(bSaving ? "Zuordnen…" : "Zuordnen")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@code {
+    private List<Mitarbeiter> mitarbeiter = [];
+    private List<Stelle> stellen = [];
+    private List<Funktion> funktionen = [];
+    private List<Organisationseinheit> oes = [];
+    private List<Stellenbesetzung> besetzungen = [];
+    private bool loading = true;
+    private string? expandedId;
+
+    private bool showMitarbeiterModal;
+    private bool mSaving;
+    private string? mError;
+    private MForm mForm = new();
+
+    private bool showBesetzungModal;
+    private bool bSaving;
+    private string? bError;
+    private BForm bForm = new();
+
+    private IEnumerable<Stelle> aktivStellen => stellen.Where(s => s.Status == "AKTIV");
+    private Dictionary<string, string> oeMap => FlattenOes(oes).ToDictionary(o => o.Id, o => o.Bezeichnung);
+    private Dictionary<string, string> funkMap => funktionen.ToDictionary(f => f.Id, f => f.Bezeichnung);
+    private Dictionary<string, Stelle> stelleMap => stellen.ToDictionary(s => s.Id);
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        var t1 = Api.GetMitarbeiterAsync();
+        var t2 = Api.GetStellenAsync();
+        var t3 = Api.GetFunktionenAsync();
+        var t4 = Api.GetOrganisationseinheitenAsync();
+        await Task.WhenAll(t1, t2, t3, t4);
+        mitarbeiter = t1.Result; stellen = t2.Result; funktionen = t3.Result; oes = t4.Result;
+        loading = false;
+    }
+
+    private void OpenCreate() { mError = null; mForm = new(); showMitarbeiterModal = true; }
+    private void OpenEdit(Mitarbeiter m)
+    {
+        mError = null;
+        mForm = new MForm { Id = m.Id, Vorname = m.Vorname, Nachname = m.Nachname, Email = m.Email,
+                            Personalnummer = m.Personalnummer, Eintrittsdatum = m.Eintrittsdatum,
+                            Austrittsdatum = m.Austrittsdatum ?? "" };
+        showMitarbeiterModal = true;
+    }
+
+    private async Task HandleMitarbeiterSave()
+    {
+        mSaving = true; mError = null;
+        try
+        {
+            var data = new
+            {
+                vorname        = mForm.Vorname,
+                nachname       = mForm.Nachname,
+                email          = mForm.Email,
+                personalnummer = mForm.Personalnummer,
+                eintrittsdatum = mForm.Eintrittsdatum,
+                austrittsdatum = string.IsNullOrEmpty(mForm.Austrittsdatum) ? null : mForm.Austrittsdatum
+            };
+            if (mForm.Id != null) await Api.UpdateMitarbeiterAsync(mForm.Id, data);
+            else await Api.CreateMitarbeiterAsync(data);
+            showMitarbeiterModal = false;
+            await LoadAsync();
+        }
+        catch { mError = "Speichern fehlgeschlagen."; }
+        finally { mSaving = false; }
+    }
+
+    private async Task ToggleExpand(string id)
+    {
+        if (expandedId == id) { expandedId = null; return; }
+        expandedId = id;
+        besetzungen = await Api.GetBesetzungenByMitarbeiterAsync(id);
+    }
+
+    private void OpenBesetzungModal(string mitarbeiterId)
+    {
+        bError = null;
+        bForm = new BForm { MitarbeiterId = mitarbeiterId };
+        showBesetzungModal = true;
+    }
+
+    private async Task HandleBesetzungSave()
+    {
+        if (string.IsNullOrEmpty(bForm.StelleId)) { bError = "Stelle erforderlich."; return; }
+        if (string.IsNullOrEmpty(bForm.StartDatum)) { bError = "Startdatum erforderlich."; return; }
+        bSaving = true; bError = null;
+        try
+        {
+            await Api.CreateStellenbesetzungAsync(new
+            {
+                stelleId            = bForm.StelleId,
+                mitarbeiterId       = bForm.MitarbeiterId,
+                startDatum          = bForm.StartDatum,
+                endDatum            = string.IsNullOrEmpty(bForm.EndDatum) ? null : bForm.EndDatum,
+                istVerantwortlicher = bForm.IstVerantwortlicher,
+                typ                 = bForm.Typ
+            });
+            showBesetzungModal = false;
+            if (expandedId != null)
+                besetzungen = await Api.GetBesetzungenByMitarbeiterAsync(expandedId);
+        }
+        catch { bError = "Zuordnung fehlgeschlagen."; }
+        finally { bSaving = false; }
+    }
+
+    private async Task HandleBeenden(Stellenbesetzung b)
+    {
+        var result = await DialogService.ShowMessageBox(
+            "Stellenbesetzung beenden",
+            "Bitte geben Sie das Enddatum ein:",
+            yesText: "Beenden", cancelText: "Abbrechen");
+        if (result != true) return;
+        var endDatum = DateTime.Today.ToString("yyyy-MM-dd");
+        await Api.BeendeStellenbesetzungAsync(b.Id, endDatum);
+        if (expandedId != null)
+            besetzungen = await Api.GetBesetzungenByMitarbeiterAsync(expandedId);
+    }
+
+    private static IEnumerable<Organisationseinheit> FlattenOes(List<Organisationseinheit> oes)
+    {
+        foreach (var oe in oes) { yield return oe; foreach (var c in FlattenOes(oe.Kinder)) yield return c; }
+    }
+
+    private class MForm
+    {
+        public string? Id { get; set; }
+        public string Vorname { get; set; } = "";
+        public string Nachname { get; set; } = "";
+        public string Email { get; set; } = "";
+        public string Personalnummer { get; set; } = "";
+        public string Eintrittsdatum { get; set; } = "";
+        public string Austrittsdatum { get; set; } = "";
+    }
+
+    private class BForm
+    {
+        public string MitarbeiterId { get; set; } = "";
+        public string StelleId { get; set; } = "";
+        public string StartDatum { get; set; } = "";
+        public string EndDatum { get; set; } = "";
+        public bool IstVerantwortlicher { get; set; }
+        public string Typ { get; set; } = "HAUPTINHABER";
+    }
+}
