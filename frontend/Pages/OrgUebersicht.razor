@@ -1,0 +1,170 @@
+@page "/"
+@inject ApiService Api
+@inject IDialogService DialogService
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Organisationsübersicht</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add" OnClick="OpenCreate">
+        Neue Organisationseinheit
+    </MudButton>
+</MudStack>
+
+<WarnungBanner />
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="mt-4" />
+}
+else if (error != null)
+{
+    <MudAlert Severity="Severity.Error" Class="mt-4">@error</MudAlert>
+}
+else if (oes.Count == 0)
+{
+    <MudPaper Class="pa-8 mt-4 text-center" Elevation="1">
+        <MudText Color="Color.Secondary">Keine Organisationseinheiten vorhanden.</MudText>
+        <MudText Typo="Typo.body2" Color="Color.Secondary" Class="mt-1">
+            Legen Sie mit „+ Neue Organisationseinheit" die erste Einheit an.
+        </MudText>
+    </MudPaper>
+}
+else
+{
+    <MudPaper Class="pa-4 mt-4" Elevation="1">
+        @foreach (var oe in oes)
+        {
+            <OrgNode Node="oe"
+                     OnEdit="OpenEdit"
+                     OnAddChild="OpenCreateWithParent"
+                     OnActivate="HandleActivate"
+                     OnDeactivate="HandleDeactivate"
+                     OnAufloesen="HandleAufloesen"
+                     OnDelete="HandleDelete" />
+        }
+    </MudPaper>
+}
+
+@code {
+    private List<Organisationseinheit> oes = [];
+    private List<Kostenstelle> kostenstellen = [];
+    private bool loading = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true; error = null;
+        try
+        {
+            var t1 = Api.GetOrganisationseinheitenAsync();
+            var t2 = Api.GetKostenstellenAsync();
+            await Task.WhenAll(t1, t2);
+            oes = t1.Result;
+            kostenstellen = t2.Result;
+        }
+        catch { error = "Daten konnten nicht geladen werden."; }
+        finally { loading = false; }
+    }
+
+    private async Task OpenCreate()
+    {
+        var parameters = new DialogParameters<OrgFormModal>
+        {
+            { x => x.Mode, "create" },
+            { x => x.Initial, null },
+            { x => x.ParentId, null },
+            { x => x.AllOes, oes },
+            { x => x.Kostenstellen, kostenstellen }
+        };
+        var dialog = await DialogService.ShowAsync<OrgFormModal>("", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (!result!.Canceled)
+        {
+            var data = (OeFormData)result.Data!;
+            await Api.CreateOrganisationseinheitAsync(data);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenEdit(Organisationseinheit oe)
+    {
+        var parameters = new DialogParameters<OrgFormModal>
+        {
+            { x => x.Mode, "edit" },
+            { x => x.Initial, oe },
+            { x => x.ParentId, null },
+            { x => x.AllOes, oes },
+            { x => x.Kostenstellen, kostenstellen }
+        };
+        var dialog = await DialogService.ShowAsync<OrgFormModal>("", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (!result!.Canceled)
+        {
+            var data = (OeFormData)result.Data!;
+            await Api.UpdateOrganisationseinheitAsync(oe.Id, data);
+            await LoadAsync();
+        }
+    }
+
+    private async Task OpenCreateWithParent(string parentId)
+    {
+        var parameters = new DialogParameters<OrgFormModal>
+        {
+            { x => x.Mode, "create" },
+            { x => x.Initial, null },
+            { x => x.ParentId, parentId },
+            { x => x.AllOes, oes },
+            { x => x.Kostenstellen, kostenstellen }
+        };
+        var dialog = await DialogService.ShowAsync<OrgFormModal>("", parameters,
+            new DialogOptions { MaxWidth = MaxWidth.Small, FullWidth = true });
+        var result = await dialog.Result;
+        if (!result!.Canceled)
+        {
+            var data = (OeFormData)result.Data!;
+            await Api.CreateOrganisationseinheitAsync(data);
+            await LoadAsync();
+        }
+    }
+
+    private async Task HandleActivate(string id)
+    {
+        await Api.AktivierenOeAsync(id);
+        await LoadAsync();
+    }
+
+    private async Task HandleDeactivate(string id)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Bestätigung", "Organisationseinheit deaktivieren?",
+            yesText: "Deaktivieren", cancelText: "Abbrechen");
+        if (confirmed != true) return;
+        await Api.DeaktivierenOeAsync(id);
+        await LoadAsync();
+    }
+
+    private async Task HandleAufloesen(string id)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Bestätigung", "Organisationseinheit endgültig auflösen? Dies kann nicht rückgängig gemacht werden.",
+            yesText: "Auflösen", cancelText: "Abbrechen");
+        if (confirmed != true) return;
+        await Api.AufloesenOeAsync(id);
+        await LoadAsync();
+    }
+
+    private async Task HandleDelete(string id)
+    {
+        var confirmed = await DialogService.ShowMessageBox(
+            "Bestätigung", "Organisationseinheit löschen?",
+            yesText: "Löschen", cancelText: "Abbrechen");
+        if (confirmed != true) return;
+        await Api.DeleteOeAsync(id);
+        await LoadAsync();
+    }
+}

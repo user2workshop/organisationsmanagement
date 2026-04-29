@@ -1,0 +1,44 @@
+{
+  "name": "organisationsmanagement",
+  "build": {
+    "dockerfile": "../Dockerfile",
+    "context": "..",
+    "args": {
+      "TZ": "${localEnv:TZ:Europe/Berlin}",
+      "CLAUDE_CODE_VERSION": "latest"
+    }
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "anthropic.claude-code",
+        "eamodio.gitlens",
+        "vscjava.vscode-java-pack",
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "bradlc.vscode-tailwindcss"
+      ],
+      "settings": {
+        "terminal.integrated.defaultProfile.linux": "bash",
+        "editor.formatOnSave": true
+      }
+    }
+  },
+  "remoteUser": "node",
+  "runArgs": [
+    "--name", "organisationsmanagement-sandbox"
+  ],
+  "mounts": [
+    "source=organisationsmanagement-claude-config,target=/home/node/.claude,type=volume"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "CLAUDE_CONFIG_DIR": "/home/node/.claude",
+    "DEVCONTAINER": "true"
+  },
+  "forwardPorts": [8080, 5173, 27017],
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "shutdownAction": "stopContainer",
+  "postStartCommand": "test -f /home/node/.claude/.claude.json || echo '{\"hasCompletedOnboarding\":true,\"installMethod\":\"npm\",\"numStartups\":1}' > /home/node/.claude/.claude.json"
+}

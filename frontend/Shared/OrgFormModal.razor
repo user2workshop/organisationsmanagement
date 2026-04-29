@@ -1,0 +1,138 @@
+@namespace OrgMgmtFrontend.Shared
+
+<MudDialog>
+    <TitleContent>
+        <MudText Typo="Typo.h6">
+            @(Mode == "create" ? "Organisationseinheit anlegen" : "Organisationseinheit bearbeiten")
+        </MudText>
+    </TitleContent>
+    <DialogContent>
+        <MudGrid Spacing="2">
+            <MudItem xs="12">
+                <MudTextField @bind-Value="form.Bezeichnung" Label="Bezeichnung *"
+                              AutoFocus="true" Placeholder="z. B. Vertrieb Nord" Required="true" />
+            </MudItem>
+            <MudItem xs="12">
+                <MudSelect @bind-Value="form.Typ" Label="Typ *" Required="true">
+                    <MudSelectItem Value="@("BEREICH")">Bereich</MudSelectItem>
+                    <MudSelectItem Value="@("ABTEILUNG")">Abteilung</MudSelectItem>
+                    <MudSelectItem Value="@("TEAM")">Team</MudSelectItem>
+                    <MudSelectItem Value="@("STABSSTELLE")">Stabsstelle</MudSelectItem>
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudSelect @bind-Value="form.ParentId" Label="Übergeordnete Einheit">
+                    <MudSelectItem Value="@("")">(keine – Root-Einheit)</MudSelectItem>
+                    @foreach (var oe in FlatOes)
+                    {
+                        <MudSelectItem Value="@oe.Id">@oe.Bezeichnung (@TypLabelShort(oe.Typ))</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12">
+                <MudSelect @bind-Value="form.KostenstelleId" Label="Kostenstelle">
+                    <MudSelectItem Value="@("")">(keine)</MudSelectItem>
+                    @foreach (var k in Kostenstellen)
+                    {
+                        <MudSelectItem Value="@k.Id">@k.Nummer – @k.Bezeichnung</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="form.GueltigAb" Label="Gültig ab *"
+                              InputType="InputType.Date" Required="true" />
+            </MudItem>
+            <MudItem xs="6">
+                <MudTextField @bind-Value="form.GueltigBis" Label="Gültig bis"
+                              InputType="InputType.Date" />
+            </MudItem>
+            @if (!string.IsNullOrEmpty(error))
+            {
+                <MudItem xs="12">
+                    <MudAlert Severity="Severity.Error">@error</MudAlert>
+                </MudItem>
+            }
+        </MudGrid>
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Abbrechen</MudButton>
+        <MudButton Color="Color.Primary" Variant="Variant.Filled"
+                   OnClick="HandleSubmit" Disabled="@saving">
+            @(saving ? "Speichern…" : "Speichern")
+        </MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+
+    [Parameter] public string Mode { get; set; } = "create";
+    [Parameter] public Organisationseinheit? Initial { get; set; }
+    [Parameter] public string? ParentId { get; set; }
+    [Parameter] public List<Organisationseinheit> AllOes { get; set; } = [];
+    [Parameter] public List<Kostenstelle> Kostenstellen { get; set; } = [];
+
+    private OeFormData form = new();
+    private bool saving;
+    private string? error;
+
+    private IEnumerable<Organisationseinheit> FlatOes =>
+        FlattenOes(AllOes).Where(o => o.Id != Initial?.Id);
+
+    protected override void OnParametersSet()
+    {
+        if (Initial != null)
+        {
+            form = new OeFormData
+            {
+                Bezeichnung    = Initial.Bezeichnung,
+                Typ            = Initial.Typ,
+                ParentId       = Initial.ParentId ?? "",
+                KostenstelleId = Initial.KostenstelleId ?? "",
+                GueltigAb      = Initial.GueltigAb,
+                GueltigBis     = Initial.GueltigBis ?? ""
+            };
+        }
+        else
+        {
+            form = new OeFormData { ParentId = ParentId ?? "" };
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+
+    private void HandleSubmit()
+    {
+        if (string.IsNullOrWhiteSpace(form.Bezeichnung)) { error = "Bezeichnung ist erforderlich."; return; }
+        if (string.IsNullOrEmpty(form.GueltigAb)) { error = "Gültig ab ist erforderlich."; return; }
+        saving = true; error = null;
+        MudDialog.Close(DialogResult.Ok(new OeFormData
+        {
+            Bezeichnung    = form.Bezeichnung.Trim(),
+            Typ            = form.Typ,
+            ParentId       = string.IsNullOrEmpty(form.ParentId) ? null : form.ParentId,
+            KostenstelleId = string.IsNullOrEmpty(form.KostenstelleId) ? null : form.KostenstelleId,
+            GueltigAb      = form.GueltigAb,
+            GueltigBis     = string.IsNullOrEmpty(form.GueltigBis) ? null : form.GueltigBis
+        }));
+    }
+
+    private static IEnumerable<Organisationseinheit> FlattenOes(List<Organisationseinheit> oes)
+    {
+        foreach (var oe in oes)
+        {
+            yield return oe;
+            foreach (var child in FlattenOes(oe.Kinder))
+                yield return child;
+        }
+    }
+
+    private static string TypLabelShort(string typ) => typ switch
+    {
+        "BEREICH"     => "Bereich",
+        "ABTEILUNG"   => "Abteilung",
+        "TEAM"        => "Team",
+        "STABSSTELLE" => "Stabsstelle",
+        _             => typ
+    };
+}

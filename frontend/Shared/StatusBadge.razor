@@ -1,0 +1,19 @@
+@namespace OrgMgmtFrontend.Shared
+
+<MudChip T="string" Size="Size.Small" Color="@GetColor()" Variant="Variant.Filled">@Status</MudChip>
+
+@code {
+    [Parameter] public string Status { get; set; } = "";
+
+    private Color GetColor() => Status switch
+    {
+        "AKTIV"      => Color.Success,
+        "GEPLANT"    => Color.Info,
+        "BEENDET"    => Color.Default,
+        "STORNIERT"  => Color.Error,
+        "ENTWURF"    => Color.Warning,
+        "INAKTIV"    => Color.Warning,
+        "AUFGELOEST" => Color.Error,
+        _            => Color.Default
+    };
+}

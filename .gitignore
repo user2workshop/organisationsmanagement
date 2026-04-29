@@ -8,6 +8,13 @@ backend/.mvn/wrapper/maven-wrapper.jar
 frontend/node_modules/
 frontend/dist/
 frontend/.vite/
+frontend-react-backup/node_modules/
+frontend-react-backup/dist/
+frontend-react-backup/.vite/
+
+# .NET build output
+frontend/bin/
+frontend/obj/
 
 # Logs
 *.log
@@ -32,3 +39,6 @@ Thumbs.db
 
 # Spring Boot devtools restart file
 .spring-boot-devtools.properties
+
+# Claude Code
+.claude/

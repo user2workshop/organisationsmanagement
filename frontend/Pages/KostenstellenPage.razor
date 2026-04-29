@@ -1,0 +1,147 @@
+@page "/kostenstellen"
+@inject ApiService Api
+
+<MudStack Row="true" AlignItems="AlignItems.Center" Class="mb-4">
+    <MudText Typo="Typo.h5">Kostenstellen</MudText>
+    <MudSpacer />
+    <MudButton Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.Add"
+               OnClick="() => showForm = true">
+        Kostenstelle anlegen
+    </MudButton>
+</MudStack>
+
+@if (ueberschneidungen.Count > 0)
+{
+    <MudAlert Severity="Severity.Warning" Class="mb-4">
+        @ueberschneidungen.Count Kostenstelle@(ueberschneidungen.Count > 1 ? "n" : "") mit mehrfacher OE-Zuordnung
+    </MudAlert>
+}
+
+@if (showForm)
+{
+    <MudOverlay Visible="true" DarkBackground="true" ZIndex="9999" AutoClose="false">
+        <MudPaper Style="width:480px;max-width:95vw" Class="pa-6">
+            <MudText Typo="Typo.h6" Class="mb-4">Neue Kostenstelle</MudText>
+            @if (!string.IsNullOrEmpty(formError))
+            {
+                <MudAlert Severity="Severity.Error" Class="mb-3">@formError</MudAlert>
+            }
+            <MudGrid Spacing="2">
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.Nummer" Label="Nummer *" Required="true" AutoFocus="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.Bezeichnung" Label="Bezeichnung *" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.GueltigAb" Label="Gültig ab *"
+                                  InputType="InputType.Date" Required="true" />
+                </MudItem>
+                <MudItem xs="6">
+                    <MudTextField @bind-Value="form.GueltigBis" Label="Gültig bis (optional)"
+                                  InputType="InputType.Date" />
+                </MudItem>
+                <MudItem xs="12">
+                    <MudStack Row="true" Justify="Justify.FlexEnd" Spacing="2">
+                        <MudButton OnClick="() => showForm = false">Abbrechen</MudButton>
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary"
+                                   OnClick="HandleSubmit" Disabled="@saving">
+                            @(saving ? "Speichern…" : "Speichern")
+                        </MudButton>
+                    </MudStack>
+                </MudItem>
+            </MudGrid>
+        </MudPaper>
+    </MudOverlay>
+}
+
+@if (loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="kostenstellen" Hover="true" Elevation="1" Dense="true">
+        <HeaderContent>
+            <MudTh>Nummer</MudTh>
+            <MudTh>Bezeichnung</MudTh>
+            <MudTh>Gültig ab</MudTh>
+            <MudTh>Gültig bis</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>
+                <MudText Typo="Typo.body2" Style="font-family:monospace;font-weight:600">
+                    @context.Nummer
+                </MudText>
+            </MudTd>
+            <MudTd>@context.Bezeichnung</MudTd>
+            <MudTd>@context.GueltigAb</MudTd>
+            <MudTd>@(context.GueltigBis ?? "–")</MudTd>
+            <MudTd>
+                @if (ueberschneidungen.Contains(context.Id))
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Filled">
+                        Mehrfachzuordnung
+                    </MudChip>
+                }
+            </MudTd>
+        </RowTemplate>
+        <NoRecordsContent>
+            <MudText Color="Color.Secondary" Class="pa-4">Keine Kostenstellen vorhanden</MudText>
+        </NoRecordsContent>
+    </MudTable>
+}
+
+@code {
+    private List<Kostenstelle> kostenstellen = [];
+    private HashSet<string> ueberschneidungen = [];
+    private bool loading = true;
+    private bool showForm;
+    private bool saving;
+    private string? formError;
+    private KsForm form = new();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        loading = true;
+        kostenstellen = await Api.GetKostenstellenAsync();
+        var results = await Task.WhenAll(kostenstellen.Select(k =>
+            Api.PruefeUeberschneidungAsync(k.Id)));
+        ueberschneidungen = kostenstellen
+            .Select((k, i) => (k.Id, Hat: results[i]?.HatUeberschneidung ?? false))
+            .Where(x => x.Hat).Select(x => x.Id).ToHashSet();
+        loading = false;
+    }
+
+    private async Task HandleSubmit()
+    {
+        saving = true; formError = null;
+        try
+        {
+            await Api.CreateKostenstelleAsync(new
+            {
+                nummer      = form.Nummer,
+                bezeichnung = form.Bezeichnung,
+                gueltigAb   = form.GueltigAb,
+                gueltigBis  = string.IsNullOrEmpty(form.GueltigBis) ? null : form.GueltigBis
+            });
+            showForm = false;
+            form = new();
+            await LoadAsync();
+        }
+        catch { formError = "Kostenstelle konnte nicht gespeichert werden."; }
+        finally { saving = false; }
+    }
+
+    private class KsForm
+    {
+        public string Nummer { get; set; } = "";
+        public string Bezeichnung { get; set; } = "";
+        public string GueltigAb { get; set; } = "";
+        public string GueltigBis { get; set; } = "";
+    }
+}
