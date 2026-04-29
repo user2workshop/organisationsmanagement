@@ -1,0 +1,39 @@
+@startuml Entity-States-Stellenbesetzung-Organisationsmanagement
+
+skinparam state {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+  StartColor #2C3E50
+  EndColor #2C3E50
+}
+skinparam note {
+  BackgroundColor #FFFACD
+  BorderColor #DAA520
+}
+
+title Zustandsmodell: Stellenbesetzung – Organisationsmanagement\n2026-04-27
+
+state GEPLANT : Angelegt, startDatum liegt in der Zukunft\nBearbeiten, Aktivieren, Stornieren
+state AKTIV : startDatum erreicht, Besetzung ist wirksam\nVerantwortlichen setzen, Beenden
+state BEENDET : endDatum erreicht oder manuell beendet\nKeine Aktionen möglich
+state STORNIERT : Vor Aktivierung abgebrochen\nKeine Aktionen möglich
+
+[*] --> GEPLANT : Besetzung angelegt [startDatum > heute]\n/ HR
+
+GEPLANT --> AKTIV : startDatum erreicht\n/ automatisch (System)
+GEPLANT --> STORNIERT : Manuell storniert\n/ HR
+
+AKTIV --> BEENDET : endDatum erreicht\n/ automatisch (System)
+AKTIV --> BEENDET : Manuell beendet\n/ HR
+
+BEENDET --> [*]
+STORNIERT --> [*]
+
+note right of AKTIV
+  Bei Leitungsstellen: istVerantwortlicher
+  muss für genau eine aktive Besetzung
+  'true' sein.
+end note
+
+@enduml

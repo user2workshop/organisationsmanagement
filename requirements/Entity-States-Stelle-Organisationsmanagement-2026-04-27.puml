@@ -1,0 +1,41 @@
+@startuml Entity-States-Stelle-Organisationsmanagement
+
+skinparam state {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+  StartColor #2C3E50
+  EndColor #2C3E50
+}
+skinparam note {
+  BackgroundColor #FFFACD
+  BorderColor #DAA520
+}
+
+title Zustandsmodell: Stelle – Organisationsmanagement\n2026-04-27
+
+state ENTWURF : Angelegt, noch nicht freigegeben\nBearbeiten, Aktivieren, Löschen
+state AKTIV : Freigegeben und wirksam; kann besetzt werden\nBearbeiten, Deaktivieren, Auflösen
+state INAKTIV : Vorübergehend deaktiviert\nReaktivieren, Auflösen
+state AUFGELOEST : Dauerhaft aufgelöst\nKeine Aktionen möglich
+
+[*] --> ENTWURF : Stelle angelegt\n/ HR
+
+ENTWURF --> AKTIV : Stelle freigegeben\n/ HR
+ENTWURF --> [*] : Stelle gelöscht [keine aktiven Besetzungen]\n/ HR
+
+AKTIV --> INAKTIV : Deaktiviert (Umstrukturierung)\n/ HR
+AKTIV --> AUFGELOEST : Direkt aufgelöst [keine aktiven Besetzungen]\n/ HR
+
+INAKTIV --> AKTIV : Reaktiviert\n/ HR
+INAKTIV --> AUFGELOEST : Dauerhaft aufgelöst [keine aktiven Besetzungen]\n/ HR
+
+AUFGELOEST --> [*]
+
+note right of AUFGELOEST
+  Cascade: Alle Stellenbesetzungen
+  und Vertretungsregeln werden
+  automatisch BEENDET.
+end note
+
+@enduml

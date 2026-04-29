@@ -1,0 +1,41 @@
+@startuml Entity-States-Organisationseinheit-Organisationsmanagement
+
+skinparam state {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+  StartColor #2C3E50
+  EndColor #2C3E50
+}
+skinparam note {
+  BackgroundColor #FFFACD
+  BorderColor #DAA520
+}
+
+title Zustandsmodell: Organisationseinheit – Organisationsmanagement\n2026-04-27
+
+state ENTWURF : Angelegt, noch nicht freigegeben\nBearbeiten, Aktivieren, Löschen
+state AKTIV : Freigegeben und wirksam; enthält Stellen\nBearbeiten, Umstrukturieren, Deaktivieren
+state INAKTIV : Vorübergehend deaktiviert\nReaktivieren, Auflösen
+state AUFGELOEST : Dauerhaft aufgelöst\nKeine Aktionen möglich
+
+[*] --> ENTWURF : OE angelegt\n/ HR
+
+ENTWURF --> AKTIV : OE freigegeben\n/ HR
+ENTWURF --> [*] : OE gelöscht [keine Stellen vorhanden]\n/ HR
+
+AKTIV --> INAKTIV : Deaktiviert\n/ HR
+AKTIV --> AUFGELOEST : Direkt aufgelöst [alle Stellen AUFGELOEST]\n/ HR
+
+INAKTIV --> AKTIV : Reaktiviert\n/ HR
+INAKTIV --> AUFGELOEST : Dauerhaft aufgelöst [alle Stellen AUFGELOEST]\n/ HR
+
+AUFGELOEST --> [*]
+
+note right of AUFGELOEST
+  Vorbedingung: Alle enthaltenen
+  Stellen müssen den Zustand
+  AUFGELOEST haben.
+end note
+
+@enduml

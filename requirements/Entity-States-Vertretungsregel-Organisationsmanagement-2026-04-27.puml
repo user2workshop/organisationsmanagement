@@ -1,0 +1,39 @@
+@startuml Entity-States-Vertretungsregel-Organisationsmanagement
+
+skinparam state {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+  StartColor #2C3E50
+  EndColor #2C3E50
+}
+skinparam note {
+  BackgroundColor #FFFACD
+  BorderColor #DAA520
+}
+
+title Zustandsmodell: Vertretungsregel – Organisationsmanagement\n2026-04-27
+
+state GEPLANT : Angelegt, startDatum liegt in der Zukunft\nBearbeiten, Aktivieren, Stornieren
+state AKTIV : startDatum erreicht, Vertretung ist wirksam\nVorzeitig beenden
+state BEENDET : endDatum erreicht oder vorzeitig beendet\nKeine Aktionen möglich
+state STORNIERT : Vor Aktivierung abgebrochen\nKeine Aktionen möglich
+
+[*] --> GEPLANT : Vertretungsregel angelegt [startDatum > heute]\n/ HR
+
+GEPLANT --> AKTIV : startDatum erreicht\n/ automatisch (System)
+GEPLANT --> STORNIERT : Manuell storniert\n/ HR
+
+AKTIV --> BEENDET : endDatum erreicht\n/ automatisch (System)
+AKTIV --> BEENDET : Vorzeitig beendet (z.B. frühere Rückkehr)\n/ HR
+
+BEENDET --> [*]
+STORNIERT --> [*]
+
+note right of GEPLANT
+  Vertretungsregeln haben immer
+  ein definiertes endDatum —
+  offene Vertretungen sind nicht erlaubt.
+end note
+
+@enduml

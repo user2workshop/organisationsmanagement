@@ -1,0 +1,161 @@
+@startuml Data-Structure-Organisationsmanagement
+
+skinparam classAttributeIconSize 0
+skinparam classFontStyle bold
+skinparam class {
+  BackgroundColor #FEFEFE
+  BorderColor #2C3E50
+  ArrowColor #2C3E50
+  HeaderBackgroundColor #3498DB
+  HeaderFontColor #FFFFFF
+}
+skinparam note {
+  BackgroundColor #FFFACD
+  BorderColor #DAA520
+}
+
+title Datenmodell: Organisationsmanagement\n2026-04-27
+
+' ============================================================
+' ENTITÄTEN
+' ============================================================
+
+class Mitarbeiter {
+  +id: Long
+  +vorname: String
+  +nachname: String
+  +email: String
+  +personalnummer: String
+  +eintrittsdatum: Date
+  +austrittsdatum: Date
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Organisationseinheit {
+  +id: Long
+  +bezeichnung: String
+  +typ: OETyp
+  +gueltigAb: Date
+  +gueltigBis: Date
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Funktion {
+  +id: Long
+  +bezeichnung: String
+  +istLeitungsfunktion: Boolean
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Stelle {
+  +id: Long
+  +bezeichnung: String
+  +stellentyp: Stellentyp
+  +gueltigAb: Date
+  +gueltigBis: Date
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Kostenstelle {
+  +id: Long
+  +nummer: String
+  +bezeichnung: String
+  +gueltigAb: Date
+  +gueltigBis: Date
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Stellenbesetzung {
+  +id: Long
+  +startDatum: Date
+  +endDatum: Date
+  +istVerantwortlicher: Boolean
+  +typ: BesetzungsTyp
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+class Vertretungsregel {
+  +id: Long
+  +startDatum: Date
+  +endDatum: Date
+  +grund: Vertretungsgrund
+  +erstelltAm: DateTime
+  +geaendertAm: DateTime
+}
+
+' ============================================================
+' ENUMERATIONEN
+' ============================================================
+
+enum OETyp {
+  ABTEILUNG
+  TEAM
+  BEREICH
+  STABSSTELLE
+}
+
+enum Stellentyp {
+  VOLLZEIT
+  TEILZEIT
+}
+
+enum BesetzungsTyp {
+  HAUPTINHABER
+  INTERIMINHABER
+}
+
+enum Vertretungsgrund {
+  URLAUB
+  KRANKHEIT
+  POSITIONSWECHSEL
+  SONSTIGE
+}
+
+' ============================================================
+' BEZIEHUNGEN
+' ============================================================
+
+' Hierarchie der Organisationseinheiten
+Organisationseinheit "0..*" o-- "0..1" Organisationseinheit : hatEltern >
+
+' OE zu Kostenstelle (Überschneidungen möglich, werden als Warnung angezeigt)
+Organisationseinheit "0..*" --> "1" Kostenstelle : zugeordnet >
+
+' OE enthält Stellen
+Organisationseinheit "1" *-- "1..*" Stelle : enthält >
+
+' Funktion beschreibt Stelle
+Funktion "1" --> "1..*" Stelle : beschreibt >
+
+' Stelle wird besetzt
+Stelle "1" *-- "0..*" Stellenbesetzung : besetzt durch >
+Mitarbeiter "1" o-- "0..*" Stellenbesetzung : belegt >
+
+' Stelle hat Vertretungsregeln
+Stelle "1" *-- "0..*" Vertretungsregel : vertreten durch >
+Mitarbeiter "1" o-- "0..*" Vertretungsregel : übernimmt Vertretung >
+
+' Enum-Zuordnungen
+Organisationseinheit --> OETyp
+Stelle --> Stellentyp
+Stellenbesetzung --> BesetzungsTyp
+Vertretungsregel --> Vertretungsgrund
+
+note bottom of Stellenbesetzung
+  Bei Leitungsstellen: istVerantwortlicher
+  darf zu einem Zeitpunkt nur einmal
+  'true' sein (Validierungsregel).
+end note
+
+note bottom of Organisationseinheit
+  Teilen mehrere OEs dieselbe Kostenstelle,
+  zeigt das System eine Warnung an.
+end note
+
+@enduml
